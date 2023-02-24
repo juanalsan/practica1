@@ -1,0 +1,140 @@
+from multiprocessing import Process
+from multiprocessing import BoundedSemaphore, Semaphore, Lock
+from multiprocessing import current_process
+from multiprocessing import Value, Array
+from time import sleep
+from random import random
+
+
+N = 100 #cuantos numeros generan
+K = 10 #tamaño de las listas
+NPROD = 5 #numero de productores
+
+
+#para listas aleatorias
+def random_crec (a):
+    if a==-2:
+        b= random.randint(1,5)
+    else:
+        b = a + random.randint(1,5)
+    return b
+
+#añade un elemento a la lista
+#igual es buena idea usar el pid para acceder al indice y data 
+#de cada proceso guardados en una lista
+def add_data(storage,index_arr, pid ,new_data, mutex):
+    mutex.acquire()
+    try:
+        index= index_arr[pid]
+        storage[index] = new_data
+        delay(6)
+        index_arr[pid] = index + 1
+    finally:
+        mutex.release()
+        
+def remove_data(storage,index_arr, pid, mutex,empty):
+    mutex.acquire()
+    try:
+        index_arr[pid] = index_arr[pid] - 1
+        delay()
+        for i in range(K-1):
+            storage[i] = storage[i + 1]
+        empty.release()
+    finally:
+        mutex.release()
+        
+def min_indice(lst):
+    minimo=lst[0]
+    indice=0
+    for i in lst :
+        if lst[i]<=minimo:
+            indice=i
+            minimo=lst[i]
+    return (indice,minimo)
+  
+
+def delay(factor = 3):
+    sleep(random()/factor)
+
+
+
+def producer(storage,data, index, empty, non_empty, mutex):
+    for v in range(N):
+        print (f"producer {current_process().name} produciendo")
+        empty.acquire()
+        if data==-2:
+            data= random.randint(0,5)
+        else :
+            data= data+ random.randint(1,5)
+        add_data(storage, index, int(current_process().name.split('_')[1]),
+                 data, mutex)
+        non_empty.release()
+        print (f"producer {current_process().name} almacenado {data}")
+    data= -1
+    add_data(storage, index, int(current_process().name.split('_')[1]),
+             data, mutex)
+
+# Esto va a ser el merge
+def consumer_merge(storage,ordenada, index_arr, empty_lst, non_empty_lst, mutex_lst):
+    for v in range(NPROD*N):
+        for non_empty in non_empty_lst:
+            non_empty.acquire()
+        print (f"consumer {current_process().name} desalmacenando")
+        ordenar = [array[0] for array in storage]
+        
+        (i,minimo)=min_indice(ordenar)
+        
+        remove_data(storage[i],index_arr, i, mutex_lst[i],empty_lst[i])
+        ordenada.append(minimo)
+        
+        
+        print (f"consumer {current_process().name} ordenando {minimo}")
+        delay()
+
+def main():
+    storage=[Array("i",K) for _ in range(NPROD)]
+    ordenada= []
+    index_arr = Array('i', NPROD)
+    
+    for lista in storage:
+        for i in range(K):
+            lista[i]=-2
+        
+    for i in range(NPROD):
+        index_arr[i] = 0
+   
+
+        
+    print ("almacen inicial", storage[:], "indice", index_arr[:])
+
+    
+    non_empty_lst= [None]*NPROD
+    for i in range(NPROD):
+        non_empty_lst[i] = Semaphore(0)
+    empty_lst= [None]*NPROD
+    for i in range(NPROD):
+        empty_lst[i] = BoundedSemaphore(K)
+    mutex_lst= [None]*NPROD
+    for i in range(NPROD):
+        mutex_lst[i] = Lock()
+    
+    
+
+    prodlst = [ Process(target=producer,
+                        name=f'prod_{i}',
+                        args=(storage[i],-2, index_arr, empty_lst[i], non_empty_lst[i], mutex_lst[i]))
+                for i in range(NPROD) ]
+
+    conslst = [ Process(target=consumer_merge,
+                      name="cons",
+                      args=(storage,ordenada, index_arr, empty_lst, non_empty_lst, mutex_lst))]
+
+    for p in prodlst + conslst:
+        p.start()
+
+    for p in prodlst + conslst:
+        p.join()
+
+
+if __name__ == '__main__':
+    main()
