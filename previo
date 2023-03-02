@@ -32,14 +32,14 @@ def add_data(storage,index_arr, pid ,new_data, mutex):
     finally:
         mutex.release()
         
-def remove_data(storage,index_arr, pid, mutex,empty):
+def remove_data(storage,index_arr, pid, mutex,cota):
     mutex.acquire()
     try:
         index_arr[pid] = index_arr[pid] - 1
         delay()
         for i in range(K-1):
             storage[i] = storage[i + 1]
-        empty.release()
+        cota.release()
     finally:
         mutex.release()
         
@@ -58,10 +58,10 @@ def delay(factor = 3):
 
 
 
-def producer(storage,data, index, empty, non_empty, mutex):
+def producer(storage,data, index, cota, non_empty, mutex):
     for v in range(N):
-        print (f"producer {current_process().name} produciendo")
-        empty.acquire()
+        
+        cota.acquire()
         if data==-2:
             data= random.randint(0,5)
         else :
@@ -69,22 +69,22 @@ def producer(storage,data, index, empty, non_empty, mutex):
         add_data(storage, index, int(current_process().name.split('_')[1]),
                  data, mutex)
         non_empty.release()
-        print (f"producer {current_process().name} almacenado {data}")
+        
     data= -1
     add_data(storage, index, int(current_process().name.split('_')[1]),
              data, mutex)
 
 # Esto va a ser el merge
-def consumer_merge(storage,ordenada, index_arr, empty_lst, non_empty_lst, mutex_lst):
+def consumer_merge(storage,ordenada, index_arr, cota_lst, non_empty_lst, mutex_lst):
     for v in range(NPROD*N):
         for non_empty in non_empty_lst:
             non_empty.acquire()
-        print (f"consumer {current_process().name} desalmacenando")
+        
         ordenar = [array[0] for array in storage]
         
         (i,minimo)=min_indice(ordenar)
         
-        remove_data(storage[i],index_arr, i, mutex_lst[i],empty_lst[i])
+        remove_data(storage[i],index_arr, i, mutex_lst[i],cota_lst[i])
         ordenada.append(minimo)
         
         for j in range(i):
@@ -117,9 +117,9 @@ def main():
     non_empty_lst= [None]*NPROD
     for i in range(NPROD):
         non_empty_lst[i] = Semaphore(0)
-    empty_lst= [None]*NPROD
+    cota_lst= [None]*NPROD
     for i in range(NPROD):
-        empty_lst[i] = BoundedSemaphore(K)
+        cota_lst[i] = BoundedSemaphore(K)
     mutex_lst= [None]*NPROD
     for i in range(NPROD):
         mutex_lst[i] = Lock()
@@ -128,12 +128,12 @@ def main():
 
     prodlst = [ Process(target=producer,
                         name=f'prod_{i}',
-                        args=(storage[i],-2, index_arr, empty_lst[i], non_empty_lst[i], mutex_lst[i]))
+                        args=(storage[i],-2, index_arr, cota_lst[i], non_empty_lst[i], mutex_lst[i]))
                 for i in range(NPROD) ]
 
     conslst = [ Process(target=consumer_merge,
                       name="cons",
-                      args=(storage,ordenada, index_arr, empty_lst, non_empty_lst, mutex_lst))]
+                      args=(storage,ordenada, index_arr, cota_lst, non_empty_lst, mutex_lst))]
 
     for p in prodlst + conslst:
         p.start()
