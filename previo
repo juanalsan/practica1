@@ -3,7 +3,7 @@ from multiprocessing import BoundedSemaphore, Semaphore, Lock
 from multiprocessing import current_process
 from multiprocessing import Value, Array
 from time import sleep
-from random import random
+import random
 
 
 N = 100 #cuantos numeros generan
@@ -14,9 +14,9 @@ NPROD = 5 #numero de productores
 #para listas aleatorias
 def random_crec (a):
     if a==-2:
-        b= random.randint(1,5)
+        b= random.randint(0,5)
     else:
-        b = a + random.randint(1,5)
+        b = a + random.randint(0,5)
     return b
 
 #añade un elemento a la lista
@@ -46,7 +46,7 @@ def remove_data(storage,index_arr, pid, mutex,cota):
 def min_indice(lst):
     minimo=lst[0]
     indice=0
-    for i in lst :
+    for i in range(len(lst)) :
         if lst[i]<=minimo:
             indice=i
             minimo=lst[i]
@@ -54,7 +54,7 @@ def min_indice(lst):
   
 
 def delay(factor = 3):
-    sleep(random()/factor)
+    sleep(random.random()/factor)
 
 
 
@@ -144,3 +144,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
