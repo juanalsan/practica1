@@ -87,6 +87,12 @@ def consumer_merge(storage,ordenada, index_arr, empty_lst, non_empty_lst, mutex_
         remove_data(storage[i],index_arr, i, mutex_lst[i],empty_lst[i])
         ordenada.append(minimo)
         
+        for j in range(i):
+            non_empty_lst[i].release()
+            
+        for j in range(i+1,NPROD):
+            non_empty_lst[i].release()
+        
         
         print (f"consumer {current_process().name} ordenando {minimo}")
         delay()
