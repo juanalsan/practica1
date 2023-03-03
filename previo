@@ -88,13 +88,19 @@ def consumer_merge(storage,ordenada, index_cons, empty_lst, non_empty_lst):
         index_cons[i]=index_cons[i]+1
        
         ordenada.append(minimo)
-        parada = [array[0] for array in storage]
+        
         
         for j in range(i):
             non_empty_lst[i].release()
             
         for j in range(i+1,NPROD):
             non_empty_lst[i].release()
+        c=0    
+        for array in storage:
+            indice=index_cons[c]
+            elemento=array[indice]
+            parada[c]=elemento
+            c+=1
         
         
         
@@ -143,5 +149,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
