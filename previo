@@ -18,11 +18,11 @@ NPROD = 3 #numero de productores
 #de cada proceso guardados en una lista
 
         
-def remove_data(storage,index, pid,empty):
+def remove_data(storage,index,cota):
     
     try:
         storage[index]=-2
-        empty.release()
+        cota.release()
     finally:
         pass
         
@@ -39,28 +39,31 @@ def delay(factor = 3):
 
 
 
-def producer(array,data, index, empty, non_empty):
-    for v in range(N):
+def producer(array,data, index, cota, non_empty):
+    print(3)
+    for _ in range(N):
+        print (f"producer {current_process().name} soy {index}")
         
-        empty.acquire()
+        cota.acquire()
         if data==-2:
             data= random.randint(0,5)
         else :
             data= data+ random.randint(0,5)
-        index_lista= index % K
         
-        array[index_lista]=data
+        
+        array[index]=data
         
         non_empty.release()
         
-        index= index + 1
+        index= (index + 1)%K
         
     data= -1
-    index_lista= index % K 
-    array[index_lista]=-1
+    array[index]=data
+    index= (index+1) % K 
+    
 
 # Esto va a ser el merge
-def consumer_merge(storage,ordenada, index_cons, empty_lst, non_empty_lst):
+def consumer_merge(storage,ordenada, index_cons, cota_lst, non_empty_lst):
     parada=[-2]*NPROD
     menos_unos=[-1]*NPROD
    
@@ -81,13 +84,14 @@ def consumer_merge(storage,ordenada, index_cons, empty_lst, non_empty_lst):
 
         (i,minimo)=min_indice(primer_elem)
         
-        indice = index_cons[i] % K
-        
-        remove_data(storage[i], indice, i , empty_lst[i])
-        
-        index_cons[i]=index_cons[i]+1
-       
         ordenada.append(minimo)
+        
+        
+        remove_data(storage[i], indice , cota_lst[i])
+        
+        index_cons[i]=(index_cons[i]+1)%K
+       
+        
         
         
         for j in range(i):
@@ -97,7 +101,7 @@ def consumer_merge(storage,ordenada, index_cons, empty_lst, non_empty_lst):
             non_empty_lst[i].release()
         c=0    
         for array in storage:
-            indice=index_cons[c]
+            indice=index_cons[c] 
             elemento=array[indice]
             parada[c]=elemento
             c+=1
@@ -117,38 +121,29 @@ def main():
         for i in range(K):
             lista[i]=-2
         
-       
     
+    non_empty_lst= [Semaphore(0) for _ in range(NPROD)]
 
-    
-    non_empty_lst= [None]*NPROD
-    for i in range(NPROD):
-        non_empty_lst[i] = Semaphore(0)
-    empty_lst= [None]*NPROD
-    for i in range(NPROD):
-        empty_lst[i] = BoundedSemaphore(K)
-    
+    cota_lst= [BoundedSemaphore(K) for _ in range(NPROD)]
+
     
     
 
     prodlst = [ Process(target=producer,
                         name=f'prod_{i}',
-                        args=(storage[i],-2, 0, empty_lst[i], non_empty_lst[i]))
+                        args=(storage[i],-2, 0, cota_lst[i], non_empty_lst[i]))
                 for i in range(NPROD) ]
 
     conslst = [ Process(target=consumer_merge,
                       name="cons",
-                      args=(storage,ordenada, index_cons, empty_lst, non_empty_lst))]
-
+                      args=(storage,ordenada, index_cons, cota_lst, non_empty_lst))]
+    print(1)
     for p in prodlst + conslst:
         p.start()
-
+    print(2)
     for p in prodlst + conslst:
         p.join()
 
 
 if __name__ == '__main__':
     main()
-
-
-
