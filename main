@@ -104,7 +104,7 @@ def consumer_merge(storage, cota_lst, non_empty_lst):
         
         ordenada.append(minimo)
         
-        index_cons[i]
+      
 
 
         
