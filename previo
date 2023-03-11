@@ -6,51 +6,45 @@ from time import sleep
 import random
 
 
-N = 100 #cuantos numeros generan
-K = 10 #tamaño de las listas
-NPROD = 5 #numero de productores
+
+N = 10      #cuantos numeros generan
+K = 3       #tamaño de las listas
+NPROD = 3   #numero de productores
 
 
-#para listas aleatorias
-def random_crec (a):
-    if a==-2:
-        b= random.randint(0,5)
-    else:
-        b = a + random.randint(0,5)
-    return b
+
 
 #añade un elemento a la lista
-#igual es buena idea usar el pid para acceder al indice y data 
-#de cada proceso guardados en una lista
-def add_data(storage,index_arr, pid ,new_data, mutex):
-    mutex.acquire()
+
+
+def add_data(array, data, index, cota, non_empty):
     try:
-        index= index_arr[pid]
-        storage[index] = new_data
+        cota.acquire() 
+        array[index] = data 
+        non_empty.release()   
         delay(6)
-        index_arr[pid] = index + 1
-    finally:
-        mutex.release()
+    finally:  
+        pass
+
         
-def remove_data(storage,index_arr, pid, mutex,cota):
-    mutex.acquire()
+def get_data(array,index,cota,non_empty):
+    
     try:
-        index_arr[pid] = index_arr[pid] - 1
-        delay()
-        for i in range(K-1):
-            storage[i] = storage[i + 1]
+        
         cota.release()
+        non_empty.acquire()
+        array[index]=-2
     finally:
-        mutex.release()
+        pass
+    
+
+        
+
         
 def min_indice(lst):
-    minimo=lst[0]
-    indice=0
-    for i in range(len(lst)) :
-        if lst[i]<=minimo:
-            indice=i
-            minimo=lst[i]
-    return (indice,minimo)
+    minimo = min(lst)
+    indice = lst.index(minimo)    
+    return (indice, minimo)
   
 
 def delay(factor = 3):
@@ -58,90 +52,98 @@ def delay(factor = 3):
 
 
 
-def producer(storage,data, index, cota, non_empty, mutex):
-    for v in range(N):
+def producer(array, cota, non_empty):
+
+    data=0
+    index=0
+    for _ in range(N):
         
-        cota.acquire()
-        if data==-2:
-            data= random.randint(0,5)
-        else :
-            data= data+ random.randint(1,5)
-        add_data(storage, index, int(current_process().name.split('_')[1]),
-                 data, mutex)
-        non_empty.release()
+        
+        
+
+        data = data + random.randint(0,5)
+        add_data(array, data, index, cota, non_empty)
+        index= (index + 1)%K
+        print (f"producer {current_process().name} produzco {data}")
         
     data= -1
-    add_data(storage, index, int(current_process().name.split('_')[1]),
-             data, mutex)
+    add_data(array, data, index, cota, non_empty)
+    index= (index+1) % K 
+    
 
 # Esto va a ser el merge
-def consumer_merge(storage,ordenada, index_arr, cota_lst, non_empty_lst, mutex_lst):
-    for v in range(NPROD*N):
+def consumer_merge(storage, cota_lst, non_empty_lst):
+    ordenada=[]
+    primer_elem=[None]*NPROD
+    index_cons = [0]*NPROD
+   
+    while True:
         for non_empty in non_empty_lst:
             non_empty.acquire()
+            non_empty.release()
         
-        ordenar = [array[0] for array in storage]
+        c=0
+        for array in storage:
+            indice=index_cons[c]
+            elemento=array[indice]
+            if elemento != -1:
+                primer_elem[c]=elemento
+            else:
+                primer_elem[c]=float('inf')
+            c+=1
         
-        (i,minimo)=min_indice(ordenar)
+        if primer_elem == [float('inf') for _ in range(NPROD)]:
+            break    
+
+        (i,minimo)=min_indice(primer_elem)
         
-        remove_data(storage[i],index_arr, i, mutex_lst[i],cota_lst[i])
+        
+        get_data(storage[i], index_cons[i] , cota_lst[i],non_empty_lst[i])
+        
+        index_cons[i]=(index_cons[i]+1)%K
+        
         ordenada.append(minimo)
         
-        for j in range(i):
-            non_empty_lst[i].release()
-            
-        for j in range(i+1,NPROD):
-            non_empty_lst[i].release()
+        index_cons[i]
+
+
         
-        
-        print (f"consumer {current_process().name} ordenando {minimo}")
+        print (f"consumer {current_process().name} ordenando {ordenada}")
         delay()
 
 def main():
+  
+    
     storage=[Array("i",K) for _ in range(NPROD)]
-    ordenada= []
-    index_arr = Array('i', NPROD)
     
-    for lista in storage:
+    
+    for array in storage:
         for i in range(K):
-            lista[i]=-2
+            array[i]=-2
         
-    for i in range(NPROD):
-        index_arr[i] = 0
-   
-
-        
-    print ("almacen inicial", storage[:], "indice", index_arr[:])
-
     
-    non_empty_lst= [None]*NPROD
-    for i in range(NPROD):
-        non_empty_lst[i] = Semaphore(0)
-    cota_lst= [None]*NPROD
-    for i in range(NPROD):
-        cota_lst[i] = BoundedSemaphore(K)
-    mutex_lst= [None]*NPROD
-    for i in range(NPROD):
-        mutex_lst[i] = Lock()
+    non_empty_lst= [Semaphore(0) for _ in range(NPROD)]
+
+    cota_lst= [BoundedSemaphore(K) for _ in range(NPROD)]
+
     
     
 
     prodlst = [ Process(target=producer,
                         name=f'prod_{i}',
-                        args=(storage[i],-2, index_arr, cota_lst[i], non_empty_lst[i], mutex_lst[i]))
+                        args=(storage[i], cota_lst[i], non_empty_lst[i]))
                 for i in range(NPROD) ]
 
-    conslst = [ Process(target=consumer_merge,
+    conslst =  Process(target=consumer_merge,
                       name="cons",
-                      args=(storage,ordenada, index_arr, cota_lst, non_empty_lst, mutex_lst))]
-
-    for p in prodlst + conslst:
+                      args=(storage, cota_lst, non_empty_lst))
+    
+    for p in prodlst + [conslst]:
         p.start()
-
-    for p in prodlst + conslst:
+    
+    for p in prodlst + [conslst]:
         p.join()
 
 
 if __name__ == '__main__':
     main()
-
